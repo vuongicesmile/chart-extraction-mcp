@@ -25,7 +25,7 @@ class ChartReference(BaseModel):
     chart_id: str
     page: int
     bbox: Box
-    kind: Literal["bar", "candidate"]
+    kind: Literal["bar", "pie", "candidate"]
     caption: str | None = None
 
 
@@ -40,10 +40,13 @@ class ChartList(BaseModel):
 class DataPoint(BaseModel):
     label: str
     value: float | None = None
-    evidence: Literal["label", "axis_estimate", "vision", "unreadable"]
+    color_hex: str | None = None
+    evidence: Literal["label", "axis_estimate", "sector_estimate", "vision", "unreadable"]
 
 
 class ChartData(BaseModel):
+    chart_type: Literal["bar", "pie"] | None = None
+    largest_slice: str | None = None
     status: Literal["ok", "partial", "unreadable", "unsupported"]
     method: Literal["vector", "ocr", "vision", "none"]
     title: str | None = None

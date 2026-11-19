@@ -35,7 +35,7 @@ def create_app(settings: Settings | None = None, transport=None):
     )
     mcp = FastMCP(
         "Chart Extraction",
-        instructions="Read and cite on-demand charts from Open WebUI PDFs.",
+        instructions="Read and cite on-demand bar and pie charts from Open WebUI PDFs.",
         json_response=True,
         stateless_http=True,
         transport_security=security,

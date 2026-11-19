@@ -18,10 +18,11 @@ def register(mcp: FastMCP, service: ChartService) -> None:
         page_number: Annotated[int, Field(ge=1)] | None = None,
         chart_id: str | None = None,
     ) -> Extraction:
-        """Read a bar chart when asked about values or comparisons in a PDF chart.
+        """Read a bar or pie chart when asked about values or comparisons in a PDF.
         Use the authorized attachment UUID and 1-based page or a chart_id from
         list_document_charts. If several charts are on the page, pass chart_id.
         Answer from chart.values and context, cite source.url and source.page,
-        mark axis estimates as approximate, and leave unreadable values unknown.
+        mark axis and sector estimates as approximate. For pie charts, largest_slice
+        identifies a dominant slice when available. Leave unreadable values unknown.
         """
         return await call(ctx, service.extract, file_id, question, page_number, chart_id)

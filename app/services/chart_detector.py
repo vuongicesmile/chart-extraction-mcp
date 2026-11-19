@@ -12,6 +12,7 @@ from PIL import Image
 from app.schemas.chart import Box, ChartContext, ChartReference
 from app.services.context_linker import context_for
 from app.services.pdf_parser import TextLine, render
+from app.services.pie_chart import Sector, find_pies
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,7 @@ class DetectedChart:
     plot: Box
     bars: tuple[Box, ...]
     context: ChartContext
+    sectors: tuple[Sector, ...] = ()
 
 
 def overlaps(left: Box, right: Box) -> float:
@@ -79,7 +81,9 @@ def raster_groups(png: bytes) -> tuple[list[tuple[Box, ...]], tuple[int, int]]:
     return group_bars(rectangles, width * 0.25), (width, height)
 
 
-def detect(page: pymupdf.Page, lines: list[TextLine]) -> list[DetectedChart]:
+def detect(
+    page: pymupdf.Page, lines: list[TextLine], vision_enabled: bool = False
+) -> list[DetectedChart]:
     drawings = page.get_drawings()
     rects = [
         tuple(item[1])
@@ -117,21 +121,26 @@ def detect(page: pymupdf.Page, lines: list[TextLine]) -> list[DetectedChart]:
             for line in lines
         )
         if has_labels and not any(overlaps(plot, row[1]) > 0.7 for row in candidates):
-            candidates.append((tuple(zone), plot, bars, "bar"))
-    for info in page.get_image_info()[:24]:
-        rect = pymupdf.Rect(info["bbox"]) & page.rect
-        if rect.width < 100 or rect.height < 65:
-            continue
+            candidates.append((tuple(zone), plot, bars, "bar", ()))
+    for plot, sectors in find_pies(drawings):
+        x0, y0, x1, y1 = plot
+        zone = pymupdf.Rect(x0 - 15, y0 - 30, x1 + 15, y1 + 12) & page.rect
+        candidates.append((tuple(zone), plot, (), "pie", sectors))
+    image_boxes = [pymupdf.Rect(info["bbox"]) & page.rect for info in page.get_image_info()[:24]]
+    image_boxes = [rect for rect in image_boxes if rect.width >= 100 and rect.height >= 65]
+    for rect in image_boxes:
         box = tuple(rect)
         if any(overlaps(box, row[0]) > 0.7 for row in candidates):
             continue
         context = context_for(box, lines)
         if raster_groups(render(page, box, 320))[0]:
-            candidates.append((box, box, (), "bar"))
-        elif context.caption:
-            candidates.append((box, box, (), "candidate"))
+            candidates.append((box, box, (), "bar", ()))
+        elif context.caption or (vision_enabled and len(image_boxes) == 1):
+            candidates.append((box, box, (), "candidate", ()))
     result = []
-    for box, plot, bars, kind in sorted(candidates, key=lambda row: (row[0][1], row[0][0])):
+    for box, plot, bars, kind, sectors in sorted(
+        candidates, key=lambda row: (row[0][1], row[0][0])
+    ):
         rounded = tuple(round(point, 2) for point in box)
         locator = hashlib.sha256(repr((rounded, plot, bars)).encode()).hexdigest()[:16]
         page_no = page.number + 1
@@ -148,6 +157,7 @@ def detect(page: pymupdf.Page, lines: list[TextLine]) -> list[DetectedChart]:
                 plot,
                 bars,
                 context,
+                sectors,
             )
         )
     return result
