@@ -1,0 +1,26 @@
+services:
+  chart-mcp:
+    build: .
+    environment:
+      OPENWEBUI_URL: ${OPENWEBUI_URL:-http://open-webui:8080}
+      OPENWEBUI_PUBLIC_URL: ${OPENWEBUI_PUBLIC_URL:-http://127.0.0.1:3001}
+      OCR_LANGUAGE: ${OCR_LANGUAGE:-eng}
+      VISION_BASE_URL: ${VISION_BASE_URL:-}
+      VISION_API_KEY: ${VISION_API_KEY:-}
+      VISION_MODEL: ${VISION_MODEL:-}
+      VISION_MAX_TOKENS: ${VISION_MAX_TOKENS:-1000}
+    ports:
+      - "127.0.0.1:${CHART_MCP_PORT:-8765}:8765"
+    volumes:
+      - chart-cache:/data
+    networks:
+      - webui
+    restart: unless-stopped
+
+networks:
+  webui:
+    name: ${OPENWEBUI_NETWORK:-chart-mcp-local}
+    external: true
+
+volumes:
+  chart-cache:

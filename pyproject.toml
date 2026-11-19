@@ -1,0 +1,27 @@
+[project]
+name = "chart-extraction-mcp"
+version = "0.1.0"
+description = "On-demand bar chart extraction for Open WebUI PDF attachments"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "httpx>=0.28,<1",
+    "mcp>=1.26,<2",
+    "pillow>=12.1,<13",
+    "pydantic>=2.11,<3",
+    "pydantic-settings>=2.10,<3",
+    "pymupdf>=1.26,<2",
+    "uvicorn>=0.34,<1",
+]
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "ruff>=0.12,<1"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
