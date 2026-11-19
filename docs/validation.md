@@ -28,3 +28,14 @@ PDF benchmark nhúng ảnh biểu đồ nên phần text layer chỉ có caption
 Đã kiểm tra thêm bằng Open WebUI thử nghiệm, sử dụng hai tài khoản riêng. Chủ tệp đọc được Q2 = 50, lần gọi lại báo cache hit, tài khoản còn lại bị từ chối trên đúng UUID đó. Docker OCR đọc được tiêu đề, hai trục, đơn vị USD và 25/50/75 từ biểu đồ ảnh mẫu. Vision tùy chọn đã đọc được cùng bộ số trên ảnh crop giả lập bằng `glm-4v-flash`.
 
 Ứng dụng chính đã lưu kết nối **Chart Extraction** với auth **Session** và quyền mặc định cho admin. So sánh 12 câu thực hiện trong môi trường riêng với dữ liệu giả lập.
+
+## Đối chứng biểu đồ tròn trong PDF
+
+Hai PDF giả lập có cùng text layer và khác lát màu chiếm 60%. Đây là cặp mẫu của [báo cáo Open WebUI](https://github.com/open-webui/open-webui/discussions/11496#discussioncomment-19727262). Trên Open WebUI v0.13.4, `glm-4v-flash` đoán sai hoặc trả lời không xác định khi chỉ nhận PDF, nhưng đọc đúng cả hai trang dưới dạng ảnh. Với MCP mới, `glm-4-flash` gọi `extract_chart` qua Session và đọc được cả hai PDF gốc, trong môi trường thử nghiệm bật MCP và tắt Vision fallback.
+
+| Lát thực tế | PDF qua extractor mặc định | PDF qua MCP |
+| --- | --- | --- |
+| Xanh dương | Đỏ | Xanh dương, khoảng 60%, trang 1 |
+| Xanh lá | Không xác định | Xanh lá, khoảng 60%, trang 1 |
+
+`tests/test_pie_chart.py` tạo lại hai PDF bằng ReportLab và kiểm tra kết quả qua MCP HTTP, gồm phát hiện, trích xuất, nguồn và cache. Các ca bổ sung kiểm tra hình không khép kín, các lát bằng nhau và kết quả Vision khi ảnh raster có lát lớn nhất nhưng thiếu nhãn số. Bài Vision raster dùng provider giả lập. Hai lượt chat với PDF vector dùng Open WebUI và model Z.ai thật.

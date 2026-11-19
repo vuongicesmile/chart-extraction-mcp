@@ -13,10 +13,11 @@ from app.services.chart_detector import DetectedChart, detect
 from app.services.chart_extractor import read_bars, read_raster, read_vision
 from app.services.file_resolver import ChartError, FileResolver, ResolvedPDF
 from app.services.pdf_parser import TextLine, open_pdf, page_at, render, text_lines
+from app.services.pie_chart import read_pie
 from app.settings import Settings
 
 CHART_ID = re.compile(r"p([1-9]\d{0,6})-[a-f0-9]{16}")
-EXTRACTOR_VERSION = "4"
+EXTRACTOR_VERSION = "5"
 
 
 @dataclass(frozen=True)
@@ -25,14 +26,14 @@ class LocatedChart:
     lines: list[TextLine]
 
 
-def scan(document: ResolvedPDF, start: int, limit: int) -> ChartList:
+def scan(document: ResolvedPDF, start: int, limit: int, vision_enabled: bool) -> ChartList:
     with open_pdf(document.content) as pdf:
         page_at(pdf, start)
         last = min(pdf.page_count, start + limit - 1)
         charts = []
         for number in range(start, last + 1):
             page = page_at(pdf, number)
-            charts.extend(detect(page, text_lines(page)))
+            charts.extend(detect(page, text_lines(page), vision_enabled))
         return ChartList(
             file_id=document.file_id,
             source_file=document.filename,
@@ -42,11 +43,13 @@ def scan(document: ResolvedPDF, start: int, limit: int) -> ChartList:
         )
 
 
-def locate(document: ResolvedPDF, number: int, chart_id: str | None) -> LocatedChart:
+def locate(
+    document: ResolvedPDF, number: int, chart_id: str | None, vision_enabled: bool
+) -> LocatedChart:
     with open_pdf(document.content) as pdf:
         page = page_at(pdf, number)
         lines = text_lines(page)
-        charts = detect(page, lines)
+        charts = detect(page, lines, vision_enabled)
         if chart_id is not None:
             charts = [chart for chart in charts if chart.reference.chart_id == chart_id]
         if not charts:
@@ -82,11 +85,14 @@ class ChartService:
         self.files = FileResolver(settings, http)
         self.cache = ChartCache(settings.cache_path, settings.cache_ttl_hours)
         self.cache_locks = [asyncio.Lock() for _ in range(32)]
+        self.vision_enabled = bool(
+            settings.vision_base_url and settings.vision_api_key and settings.vision_model
+        )
 
     async def list(self, file_id: UUID, start: int, authorization: str) -> ChartList:
         document = await self.files.resolve(file_id, authorization)
         return await asyncio.to_thread(
-            pdf_call, scan, document, start, self.settings.max_pages_per_scan
+            pdf_call, scan, document, start, self.settings.max_pages_per_scan, self.vision_enabled
         )
 
     @staticmethod
@@ -117,7 +123,9 @@ class ChartService:
     async def get_source(self, file_id: UUID, chart_id: str, authorization: str) -> ChartSource:
         document = await self.files.resolve(file_id, authorization)
         page = self.chart_page(None, chart_id)
-        result = await asyncio.to_thread(pdf_call, locate, document, page, chart_id)
+        result = await asyncio.to_thread(
+            pdf_call, locate, document, page, chart_id, self.vision_enabled
+        )
         return ChartSource(
             chart_id=chart_id,
             source=self.source(document, result.chart),
@@ -135,13 +143,11 @@ class ChartService:
         # Always ask Open WebUI for authorized bytes before touching the shared cache.
         document = await self.files.resolve(file_id, authorization)
         page = self.chart_page(page_number, chart_id)
-        result = await asyncio.to_thread(pdf_call, locate, document, page, chart_id)
-        chart = result.chart
-        vision_enabled = bool(
-            self.settings.vision_base_url
-            and self.settings.vision_api_key
-            and self.settings.vision_model
+        result = await asyncio.to_thread(
+            pdf_call, locate, document, page, chart_id, self.vision_enabled
         )
+        chart = result.chart
+        vision_enabled = self.vision_enabled
         file_hash = hashlib.sha256(document.content).hexdigest()
         fingerprint = (
             EXTRACTOR_VERSION,
@@ -158,13 +164,16 @@ class ChartService:
             data = await asyncio.to_thread(self.cache.read, key)
             cached = data is not None
             if data is None:
-                data = (
-                    read_bars(chart, result.lines)
-                    if chart.bars
-                    else ChartData(
-                        status="unreadable", method="none", warnings=["No readable vector bars."]
+                if chart.sectors:
+                    data = read_pie(chart.sectors)
+                elif chart.bars:
+                    data = read_bars(chart, result.lines)
+                else:
+                    data = ChartData(
+                        status="unreadable",
+                        method="none",
+                        warnings=["No readable vector geometry."],
                     )
-                )
                 if data.status != "ok" and (vision_enabled or not chart.bars):
                     png = await asyncio.to_thread(
                         pdf_call,
@@ -173,7 +182,7 @@ class ChartService:
                         page,
                         chart.reference.bbox,
                     )
-                    if not chart.bars:
+                    if not chart.bars and chart.reference.kind == "bar":
                         data = await asyncio.to_thread(
                             read_raster,
                             chart,

@@ -15,7 +15,11 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest>=8,<10", "ruff>=0.12,<1"]
+dev = [
+    "pytest>=8,<10",
+    "reportlab>=4,<5",
+    "ruff>=0.12,<1",
+]
 
 [tool.ruff]
 line-length = 100

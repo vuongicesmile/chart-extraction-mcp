@@ -16,7 +16,7 @@ def register(mcp: FastMCP, service: ChartService) -> None:
         ctx: Context,
         start_page: Annotated[int, Field(ge=1)] = 1,
     ) -> ChartList:
-        """Locate bar charts in an authorized Open WebUI PDF. Pass the attachment UUID,
+        """Locate bar and pie charts in an authorized Open WebUI PDF. Pass the attachment UUID,
         never a filename. Page numbers are 1-based. Continue using next_page when present.
         A candidate may be an illustration; extract_chart verifies what it can read.
         """

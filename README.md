@@ -1,6 +1,6 @@
 # Chart Extraction MCP
 
-MCP server độc lập cho Open WebUI. Server tìm và đọc biểu đồ cột trong PDF khi được gọi, rồi trả số liệu, ngữ cảnh và nguồn theo trang. Open WebUI tiếp tục dùng Knowledge RAG cho phần văn bản.
+MCP server độc lập cho Open WebUI. Server tìm và đọc biểu đồ cột hoặc biểu đồ tròn trong PDF khi được gọi, rồi trả số liệu, ngữ cảnh và nguồn theo trang. Open WebUI tiếp tục dùng Knowledge RAG cho phần văn bản.
 
 ## Chạy với Docker
 
@@ -65,11 +65,12 @@ flowchart LR
 - Với biểu đồ ảnh phẳng, server tìm nhóm cột đồng màu và dùng Tesseract đọc nhãn. Ảnh có caption nhưng chưa phân loại được xuất hiện dưới dạng `candidate`.
 - Server liên kết heading, caption và vài dòng văn bản trước/sau dựa trên vị trí. Giá trị không xác định trả `null`. Trạng thái `partial`, `unreadable` và `unsupported` cho biết khi thiếu dữ liệu.
 - SQLite lưu kết quả trích xuất theo hash PDF, trang/vùng, phiên bản extractor và cấu hình OCR/Vision. Cache hit bỏ qua OCR/Vision. File vẫn được xác quyền, tải và định vị lại. Mặc định cache hết hạn sau 168 giờ.
-- MVP hướng đến biểu đồ cột đứng một chuỗi với nhãn rõ. Biểu đồ tròn, đường, cột chồng, nhiều trục và biểu đồ raster phức tạp nằm ngoài phạm vi đã xác minh.
+- Biểu đồ tròn vector đơn giản được đọc từ các cung và màu tô trong PDF. `largest_slice` xác định lát lớn nhất nếu hình học phân biệt được. Phần trăm theo góc cung có evidence `sector_estimate`. Nhãn là tên màu gần đúng hoặc mã hex, chưa ghép với mục chú giải.
+- Phạm vi đã xác minh gồm biểu đồ cột đứng một chuỗi và biểu đồ tròn vector khép kín. Biểu đồ đường, cột chồng, nhiều trục, vành khuyên và lát tách rời chưa được hỗ trợ.
 
 ### Vision tùy chọn
 
-Đặt `VISION_BASE_URL`, `VISION_MODEL` và `VISION_API_KEY` trong `.env`, rồi chạy lại Docker Compose. Khi bật, server có thể gửi **ảnh crop của biểu đồ** tới provider cấu hình nếu hình học hoặc OCR còn thiếu thông tin. Dữ liệu do model đọc có evidence `vision` để người dùng đối chiếu nguồn. Bản chạy local mặc định chỉ xử lý bằng hình học và OCR.
+Đặt `VISION_BASE_URL`, `VISION_MODEL` và `VISION_API_KEY` trong `.env`, rồi chạy lại Docker Compose. Khi bật, server có thể gửi **ảnh crop của biểu đồ** tới provider cấu hình nếu hình học hoặc OCR còn thiếu thông tin. Dữ liệu do model đọc có evidence `vision` để người dùng đối chiếu nguồn. Bản chạy local mặc định chỉ xử lý bằng hình học và OCR. Với biểu đồ tròn raster, Vision có thể nhận diện lát lớn nhất khi hình rõ. Phần trăm không in rõ trả `null`. [Báo cáo gốc về biểu đồ trong PDF](https://github.com/open-webui/open-webui/discussions/11496#discussioncomment-19727262)
 
 ## Kiểm thử
 
